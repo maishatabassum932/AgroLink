@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Eye, EyeOff, CheckCircle } from "lucide-react";
 
@@ -8,28 +8,25 @@ function Profile() {
   const [showPassword, setShowPassword] = useState(false);
   const [showModal, setShowModal] = useState(false);
 
-  const [user, setUser] = useState({
-    _id: "",
-    name: "",
-    email: "",
-    phone: "",
-    password: "",
-    district: "",
-    area: ""
-  });
-
-  // LOAD USER
-  useEffect(() => {
+  const [user, setUser] = useState(() => {
     try {
       const stored = localStorage.getItem("user");
       if (stored && stored !== "undefined") {
-        const parsed = JSON.parse(stored);
-        setUser(parsed);
+        return JSON.parse(stored);
       }
     } catch {
       console.log("Invalid user");
     }
-  }, []);
+    return {
+      _id: "",
+      name: "",
+      email: "",
+      phone: "",
+      password: "",
+      district: "",
+      area: ""
+    };
+  });
 
   // UPDATE PROFILE
   const handleUpdate = async () => {
@@ -63,37 +60,37 @@ function Profile() {
   if (!user) return <div>Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-green-50 flex items-center justify-center p-3 sm:p-6">
 
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl p-8">
+      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl p-4 md:p-8">
 
         {/* HEADER */}
         <div className="flex flex-col items-center mb-6">
 
           {/* ICON INSTEAD OF IMAGE */}
-          <div className="w-24 h-24 bg-green-200 rounded-full flex items-center justify-center">
-            <User size={40} className="text-green-700" />
+          <div className="w-20 md:w-24 h-20 md:h-24 bg-green-200 rounded-full flex items-center justify-center">
+            <User size={32} className="md:w-10 md:h-10 text-green-700" />
           </div>
 
-          <h2 className="text-2xl font-bold mt-3">
+          <h2 className="text-xl md:text-2xl font-bold mt-3">
             {user.name || "Your Profile"}
           </h2>
 
-          <p className="text-gray-500 text-sm">
+          <p className="text-gray-500 text-xs md:text-sm">
             Manage your account information
           </p>
         </div>
 
         {/* FORM */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
 
           {/* NAME */}
           <div>
-            <label className="text-sm text-gray-600">Name</label>
+            <label className="text-xs md:text-sm text-gray-600">Name</label>
             <input
               value={user.name}
               onChange={(e) => setUser({ ...user, name: e.target.value })}
-              className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-green-400 outline-none"
+              className="w-full border rounded-lg p-2 md:p-3 text-sm md:text-base focus:ring-2 focus:ring-green-400 outline-none"
             />
           </div>
 

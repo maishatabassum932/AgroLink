@@ -18,7 +18,16 @@ const orderSchema = new mongoose.Schema({
       farmerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "User"
-      }
+      },
+      commission: {
+      type: Number,
+      default: 0
+    },
+
+    farmerEarning: {
+      type: Number,
+      default: 0
+    }
     }
   ],
 

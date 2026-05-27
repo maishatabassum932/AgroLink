@@ -1,0 +1,29 @@
+{
+  "version": "0.2",
+  "ignoreRegExpList": [
+    "/[\\u0980-\\u09FF]+/g"
+  ],
+  "words": [
+    "Agro",
+    "AgroLink",
+    "bkash",
+    "Comilla",
+    "Daudkandi",
+    "Debidwar",
+    "Dhanmondi",
+    "Gazipur",
+    "Islampur",
+    "Jamalpur",
+    "Kaliakair",
+    "Laksam",
+    "Mirpur",
+    "NAGAD",
+    "nagad",
+    "Sadar",
+    "Sarishabari",
+    "Sreepur",
+    "Sylhet",
+    "Tongi",
+    "Uttara"
+  ]
+}

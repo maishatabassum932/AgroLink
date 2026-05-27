@@ -1,5 +1,6 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { initSocket } from "../utils/socket";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import jsPDF from "jspdf";
 import bkashLogo from "../assets/payments/bkash.png";
@@ -7,7 +8,7 @@ import nagadLogo from "../assets/payments/nagad.png";
 import visaLogo from "../assets/payments/visa.png";
 import masterLogo from "../assets/payments/mastercard.png";
 
-function Checkout() {
+function Checkout({ setCart }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -20,11 +21,10 @@ function Checkout() {
   const savedDiscount = Number(localStorage.getItem("discount")) || 0;
 
   const [payment, setPayment] = useState("cod");
-  const [coupon, setCoupon] = useState("");
-  const [discount, setDiscount] = useState(savedDiscount);
 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
 
 
 
@@ -53,20 +53,8 @@ function Checkout() {
 
   const extraDelivery = totalKg > 10 ? (totalKg - 10) * 5 : 0;
 
-  const finalTotal = totalPrice + totalDelivery + extraDelivery - discount;
+  const finalTotal = totalPrice + totalDelivery + extraDelivery - savedDiscount;
 
-  // COUPON
-  
-  const applyCoupon = () => {
-    if (coupon === "SAVE50") {
-      setDiscount(50);
-      localStorage.setItem("discount", 50);
-    } else {
-      setDiscount(0);
-      localStorage.setItem("discount", 0);
-      alert("Invalid coupon");
-    }
-  };
 
   //Card Data
 const [cardData, setCardData] = useState({
@@ -114,12 +102,43 @@ const canPlaceOrder =
       ? isMobileValid
       : true
   );
-const confirmOrder = () => {
+const removeOrderedItemsFromCart = () => {
+  const orderedIds = new Set(
+    cart.map(item => String(item.id || item._id))
+  );
+
+  const filterOrderedItems = items =>
+    (items || []).filter(item => !orderedIds.has(String(item.id || item._id)));
+
+  const existingCart = JSON.parse(localStorage.getItem("cart")) || [];
+  const updatedCart = filterOrderedItems(existingCart);
+  localStorage.setItem("cart", JSON.stringify(updatedCart));
+
+  if (setCart) {
+    setCart(prev => filterOrderedItems(prev));
+  }
+
+  const existingSelectedFarmers =
+    JSON.parse(localStorage.getItem("selectedFarmers")) || {};
+  const remainingFarmerIds = new Set(updatedCart.map(item => String(item.farmerId)));
+  const updatedSelectedFarmers = Object.fromEntries(
+    Object.entries(existingSelectedFarmers).filter(([farmerId]) =>
+      remainingFarmerIds.has(String(farmerId))
+    )
+  );
+
+  localStorage.setItem("selectedFarmers", JSON.stringify(updatedSelectedFarmers));
+};
+
+const confirmOrder = async () => {
 
   setShowConfirmModal(false);
-  saveOrder();
-   setShowDownloadModal(true); 
-}
+  const orderSaved = await saveOrder();
+
+  if (orderSaved) {
+    setShowDownloadModal(true);
+  }
+};
 
 
 //otp 
@@ -155,6 +174,25 @@ useEffect(() => {
   return () => clearInterval(interval);
 }, [showOtpModal, otpTimer]);
 
+useEffect(() => {
+  // Initialize socket for real-time order updates
+  const socket = initSocket();
+
+  // Listen for order placement confirmations
+  socket.on("order:placed", (newOrder) => {
+    console.log("Order placed successfully:", newOrder);
+  });
+
+  socket.on("order:statusUpdated", (updatedOrder) => {
+    console.log("Order status updated:", updatedOrder);
+  });
+
+  return () => {
+    socket.off("order:placed");
+    socket.off("order:statusUpdated");
+  };
+}, []);
+
 const handleVerifyOtp = () => {
   if (enteredOtp !== generatedOtp) {
     alert("Invalid OTP");
@@ -164,49 +202,84 @@ const handleVerifyOtp = () => {
   // start loading
   setIsVerifying(true);
 
-  setTimeout(() => {
+  setTimeout(async () => {
     setIsVerifying(false);
     setShowOtpModal(false);
-      saveOrder();
-    // show download modal
-    setShowDownloadModal(true);
+    const orderSaved = await saveOrder();
+
+    if (orderSaved) {
+      setShowDownloadModal(true);
+    }
   }, 3000); // 3 sec
 };
 
 const saveOrder = async () => {
+  if (isPlacingOrder) return false;
+
   try {
+    setIsPlacingOrder(true);
+
     const orderData = {
       customerId: user?._id,
+
       items: cart.map(item => ({
-        productId: item.id,   // or item._id (depends on your DB)
-        quantity: item.qty
-      })),
+
+  productId: item.id,
+
+  name: item.name,
+
+  price: item.price,
+
+  qty: item.qty,
+
+  farmerId: item.farmerId
+
+})),
+
       address: {
         name: user?.name,
         phone: user?.phone,
         district: user?.district,
         area: user?.area
       },
+
       paymentMethod: payment,
+
       totalPrice,
       deliveryCharge: totalDelivery + extraDelivery,
       finalTotal
     };
 
-    const res = await fetch("http://localhost:3000/api/orders/place", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(orderData)
-    });
+    const res = await fetch(
+      "http://localhost:3000/api/orders/place",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type": "application/json"
+        },
+
+        body: JSON.stringify(orderData)
+      }
+    );
 
     const data = await res.json();
 
-    console.log("Order saved to DB ", data);
+    if (!res.ok) {
+      throw new Error(data?.error || "Order failed");
+    }
 
+    console.log("Order saved to DB ", data);
+    removeOrderedItemsFromCart();
+    return true;
   } catch (err) {
+
     console.error("DB save failed ", err);
+    alert("Order could not be placed. Please try again.");
+    return false;
+
+  } finally {
+    setIsPlacingOrder(false);
   }
 };
 
@@ -283,7 +356,6 @@ const downloadPDF = () => {
   doc.save("invoice.pdf");
 
   // cleanup
-  localStorage.removeItem("cart");
   localStorage.removeItem("discount");
 
   setShowDownloadModal(false);
@@ -313,58 +385,44 @@ const downloadPDF = () => {
           {cart.map(item => (
             <div key={item.id} className="flex justify-between text-sm mb-2">
               <span>{item.name} × {item.qty}</span>
-              <span>৳{item.price * item.qty}</span>
+              <span><span className="bdt-symbol">৳</span>{item.price * item.qty}</span>
             </div>
           ))}
 
           <hr className="my-4"/>
 
-          {/* COUPON */}
-          <div className="flex gap-2 mb-4">
-            <input
-              value={coupon}
-              onChange={(e) => setCoupon(e.target.value)}
-              placeholder="Coupon code"
-              className="flex-1 border p-2 rounded"
-            />
-            <button
-              onClick={applyCoupon}
-              className="bg-red-500 text-white px-4 rounded hover:bg-red-600 "
-            >
-              Apply
-            </button>
-          </div>
+          
 
           {/* SUMMARY */}
           <div className="space-y-2 text-sm">
 
             <div className="flex justify-between">
               <span>Subtotal</span>
-              <span>TK {totalPrice}</span>
+              <span><span className="bdt-symbol">৳</span>{totalPrice}</span>
             </div>
 
             <div className="flex justify-between">
               <span>Delivery</span>
-              <span>TK {totalDelivery}</span>
+              <span><span className="bdt-symbol">৳</span>{totalDelivery}</span>
             </div>
 
             {extraDelivery > 0 && (
               <div className="flex justify-between text-red-500">
                 <span>Extra Delivery</span>
-                <span>TK {extraDelivery}</span>
+                <span><span className="bdt-symbol">৳</span>{extraDelivery}</span>
               </div>
             )}
 
-            {discount > 0 && (
+            {savedDiscount > 0 && (
               <div className="flex justify-between text-green-600">
                 <span>Discount</span>
-                <span>-TK {discount}</span>
+                <span>-<span className="bdt-symbol">৳</span>{savedDiscount}</span>
               </div>
             )}
 
             <div className="flex justify-between font-bold text-lg mt-2">
               <span>Total</span>
-              <span>TK {finalTotal}</span>
+              <span><span className="bdt-symbol">৳</span>{finalTotal}</span>
             </div>
           </div>
         </div>
@@ -502,11 +560,11 @@ const downloadPDF = () => {
 
          <button
   onClick={handleOrder}
-  disabled={!canPlaceOrder}
+  disabled={!canPlaceOrder || isPlacingOrder}
   className={`w-full mt-6 py-3 rounded-xl text-white text-lg 
-  ${canPlaceOrder ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`}
+  ${canPlaceOrder && !isPlacingOrder ? "bg-green-600 hover:bg-green-700" : "bg-gray-400 cursor-not-allowed"}`}
 >
-  Place Order
+  {isPlacingOrder ? "Placing Order..." : "Place Order"}
 </button>
           {showConfirmModal && (
   <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -534,9 +592,10 @@ const downloadPDF = () => {
         {/* CONFIRM */}
         <button
           onClick={confirmOrder}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg ursor-pointer hover:bg-green-700 hover:text-white "
+          disabled={isPlacingOrder}
+          className="px-4 py-2 bg-green-500 text-white rounded-lg cursor-pointer hover:bg-green-700 hover:text-white disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
-          Confirm
+          {isPlacingOrder ? "Placing..." : "Confirm"}
         </button>
       </div>
 

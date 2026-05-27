@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Plus, Minus, Trash2, ArrowLeft } from "lucide-react";
 import { useState, useEffect } from "react";
+import { initSocket } from "../utils/socket";
 
 function Cart({ cart = [], setCart }) {
   const navigate = useNavigate();
@@ -15,19 +16,18 @@ function Cart({ cart = [], setCart }) {
   const safeCart = Array.isArray(cart) ? cart : [];
 
   // USER DISTRICT 
- const [userDistrict, setUserDistrict] = useState("");
-
-useEffect(() => {
+ const [userDistrict] = useState(() => {
   try {
     const stored = localStorage.getItem("user");
     if (stored && stored !== "undefined") {
       const parsed = JSON.parse(stored);
-      setUserDistrict(parsed?.district || "");
+      return parsed?.district || "";
     }
   } catch {
-    setUserDistrict("");
+    return "";
   }
-}, []);
+  return "";
+});
 
   // GROUP BY FARMER
   const groupedCart = safeCart.reduce((acc, item) => {
@@ -117,9 +117,6 @@ if (!item) return;
  useEffect(() => {
   localStorage.removeItem("coupon");
   localStorage.removeItem("discount");
-
-  setCoupon("");
-  setDiscount(0);
 }, []);
 
   const applyCoupon = () => {
@@ -138,31 +135,53 @@ useEffect(() => {
   localStorage.setItem("selectedFarmers", JSON.stringify(selectedFarmers));
 }, [selectedFarmers]);
 
+useEffect(() => {
+  // Initialize socket for real-time order updates
+  const socket = initSocket();
+
+  // Listen for order status updates
+  socket.on("order:statusUpdated", (updatedOrder) => {
+    console.log("Order status updated:", updatedOrder);
+    // Could trigger notification or refresh cart state here
+  });
+
+  // Listen for product updates
+  socket.on("product:updated", (updatedProduct) => {
+    console.log("Product updated:", updatedProduct);
+    // Update cart if product stock changes
+  });
+
+  return () => {
+    socket.off("order:statusUpdated");
+    socket.off("product:updated");
+  };
+}, []);
+
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-100 to-green-50 p-6 pb-36">
+    <div className="min-h-screen bg-gradient-to-b from-green-100 to-green-50 p-3 sm:p-6 pb-24 md:pb-36">
 
       {/* HEADER */}
       <div className="flex items-center gap-3 mb-6">
         <button className="p-2 bg-white rounded-full shadow" onClick={() => navigate(-1)}>
           <ArrowLeft />
         </button>
-        <h2 className="text-2xl font-bold text-gray-800">My Cart</h2>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-800">My Cart</h2>
       </div>
 
       {/* CART CONTENT */}
-<div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6">
-<div className="md:col-span-2 space-y-6">
+<div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-4 md:gap-6">
+<div className="md:col-span-2 space-y-4 md:space-y-6">
         {Object.entries(groupedCart).map(([fid, items]) => (
           <div
             key={fid}
-            className="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-5"
+            className="bg-white rounded-2xl shadow-md hover:shadow-xl transition p-3 md:p-5"
           >
 
             {/* FARMER HEADER */}
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
 
-              <div className="flex items-center gap-3">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 md:gap-3 w-full sm:w-auto">
                 <input
                   type="checkbox"
                   checked={selectedFarmers[fid] || false}
@@ -189,7 +208,7 @@ disabled={
                   className="w-5 h-5 accent-green-600"
                 />
 
-                <h3 className="font-semibold text-lg text-green-700">
+                <h3 className="font-semibold text-sm md:text-lg text-green-700">
                   {items[0].farmerName || "Farmer"}
                 </h3>
 
@@ -198,7 +217,7 @@ disabled={
                 </span>
               </div>
 
-              <span className="text-sm text-gray-500">
+              <span className="text-xs md:text-sm text-gray-500 self-end md:self-auto">
                 {items.length} items
               </span>
 
@@ -208,32 +227,32 @@ disabled={
             {items.map(item => (
               <div
                 key={item.id}
-                className="flex justify-between items-center border-b py-3"
+                className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 md:gap-3 border-b py-3 text-sm md:text-base"
               >
 
-                <div>
+                <div className="w-full sm:w-auto">
                   <h4 className="font-medium text-gray-800">
                     {item.name}
                   </h4>
-                  <p className="text-green-600 font-semibold">
-                    ৳{item.price}
+                  <p className="text-green-600 font-semibold text-sm">
+                    <span className="bdt-symbol">৳</span>{item.price}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 md:gap-3 w-full sm:w-auto">
 
                   {/* QTY CONTROL */}
                   <div className="flex items-center border rounded-full px-2 py-1 shadow-sm">
 
                     <button onClick={() => decreaseQty(item.id)}>
-                      <Minus size={16} />
+                      <Minus size={14} className="md:w-4 md:h-4" />
                     </button>
 
-                    <span className="px-3 font-semibold">
+                    <span className="px-2 md:px-3 font-semibold text-sm">
                       {item.qty}
                     </span>
 
-                    <button onClick={() => increaseQty(item.id)}> <Plus size={16} /> </button>
+                    <button onClick={() => increaseQty(item.id)}> <Plus size={14} className="md:w-4 md:h-4" /> </button>
                   </div>
 
                   {/* DELETE */}
@@ -241,7 +260,7 @@ disabled={
                     onClick={() => removeItem(item.id)}
                     className="text-red-500 hover:text-red-700 transition"
                   >
-                    <Trash2 />
+                    <Trash2 size={16} className="md:w-5 md:h-5" />
                   </button>
 
                 </div>
@@ -250,74 +269,86 @@ disabled={
             ))}
 
             {/* DELIVERY */}
-            <div className="flex justify-between mt-4 text-sm text-gray-600 font-medium">
+            <div className="flex flex-col sm:flex-row justify-between gap-2 mt-4 text-xs md:text-sm text-gray-600 font-medium">
               <span>
                 Delivery ({items[0].district} → {userDistrict})
               </span>
               <span className="text-green-700 font-semibold">
-                ৳{calculateFarmerDelivery(items)}
+                <span className="bdt-symbol">৳</span>{calculateFarmerDelivery(items)}
               </span>
             </div>
 
           </div>
         ))}
         </div>
-    <div className="bg-white p-5 rounded-2xl shadow-md h-fit sticky top-5">
+    <div className="bg-white p-3 md:p-5 rounded-2xl shadow-md h-fit md:sticky md:top-5">
 
         {/* COUPON */}
-        <div className="flex gap-3">
+        <div className="flex flex-col sm:flex-row gap-2">
           <input
             value={coupon}
             onChange={(e) => setCoupon(e.target.value)}
             placeholder="Enter coupon code"
-            className="flex-1 border p-3 rounded-xl shadow-sm focus:ring-2 focus:ring-green-400 outline-none"
+            className="flex-1 border p-2 md:p-3 rounded-xl text-sm md:text-base shadow-sm focus:ring-2 focus:ring-green-400 outline-none"
           />
           <button
             onClick={applyCoupon}
-            className="bg-red-500 text-white px-6 rounded-xl hover:bg-red-600 transition"
+            className="bg-red-500 text-white px-4 md:px-6 py-2 rounded-xl text-sm md:text-base hover:bg-red-600 transition"
           >
             Apply
           </button>
         </div>
         {/* SUMMARY */}
-         <div className="text-black text-lg font-semibold space-y-3 mt-10">
+         <div className="text-black text-base md:text-lg font-semibold space-y-2 md:space-y-3 mt-6 md:mt-10">
 
 
-<p className="text-sm text-gray-400">
+<p className="text-xs md:text-sm text-gray-400">
   Total: {totalKg} kg / 20 kg
 </p> 
-  <div className="flex justify-between">
+  <div className="flex justify-between text-sm md:text-base">
     <span>Subtotal:</span>
-    <span>৳{totalPrice}</span>
+    <span><span className="bdt-symbol">৳</span>{totalPrice}</span>
   </div>
 
-  <div className="flex justify-between">
+  <div className="flex justify-between text-sm md:text-base">
     <span>Delivery:</span>
-    <span>৳{totalDelivery}</span>
+    <span><span className="bdt-symbol">৳</span>{totalDelivery}</span>
   </div>
  {totalKg > 10 && (
-  <div className="flex justify-between text-red-500">
+  <div className="flex justify-between text-sm md:text-base text-red-500">
     <span>Extra Delivery:</span>
-    <span>৳{extraDelivery}</span>
+    <span><span className="bdt-symbol">৳</span>{extraDelivery}</span>
   </div>
 )}
   {discount > 0 && (
-    <div className="flex justify-between text-green-600">
+    <div className="flex justify-between text-sm md:text-base text-green-600">
       <span>Discount:</span>
-      <span>-৳{discount}</span>
+      <span>-<span className="bdt-symbol">৳</span>{discount}</span>
     </div>
   )}
 
 </div>
 
-  <h2 className="font-bold text-xl mt-2">৳{finalTotal}</h2>
+  <h2 className="font-bold text-lg md:text-xl mt-2"><span className="bdt-symbol">৳</span>{finalTotal}</h2>
 
   <button
-    onClick={() => {
-      const selectedItems = safeCart.filter(item => selectedFarmers[item.farmerId]);
-      navigate("/checkout", { state: { selectedItems, selectedFarmers  } });
-    }}
-    className="w-full mt-4 bg-green-700 text-white py-3 rounded-xl hover:bg-green-600 transition-colors hover: shadow-lg hover:-translate-y-1 hover:text-md hover:font-semibold"
+  onClick={() => {
+
+    // SELECTED PRODUCTS
+    const selectedItems = safeCart.filter(
+      item => selectedFarmers[item.farmerId]
+    );
+
+    // GO TO CHECKOUT
+    navigate("/checkout", {
+      state: {
+        selectedItems,
+        selectedFarmers
+      }
+    });
+
+  }}
+    className="w-full mt-4 bg-green-700 text-white py-2 md:py-3 text-sm md:text-base rounded-xl hover:bg-green-600 transition-colors shadow-lg hover:-translate-y-1"
   >
     Proceed to Checkout
   </button>

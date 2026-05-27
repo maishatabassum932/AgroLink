@@ -1,12 +1,64 @@
 const express = require("express");
 const router = express.Router();
 const User = require("../models/User");
+const Notification = require("../models/Notification");
+const multer = require("multer");
+const path = require("path");
+
+
+const storage = multer.diskStorage({
+
+  destination: function (req, file, cb) {
+
+    cb(null, "uploads/");
+
+  },
+
+  filename: function (req, file, cb) {
+
+    const uniqueName =
+      Date.now() +
+      path.extname(file.originalname);
+
+    cb(null, uniqueName);
+
+  }
+
+});
+
+const upload = multer({
+  storage
+});
+
 
 // Register API
-router.post("/register", async (req, res) => {
+router.post(
+  "/register",
+  upload.single("nidImage"),
+  async (req, res) => {
+
     try {
-        const { name, email, phone, password, role, nidNumber, district, area } = req.body;
-         const existingNid = await User.findOne({ nidNumber});
+
+      const {
+        name,
+        email,
+        phone,
+        password,
+        role,
+        nidNumber,
+        district,
+        area
+      } = req.body;
+
+      const nidImage =
+        req.file
+          ? `http://localhost:3000/uploads/${req.file.filename}`
+          : "";
+
+      const existingNid =
+        await User.findOne({
+          nidNumber
+        });
 
 if (existingNid) {
   return res.status(400).json({
@@ -24,16 +76,33 @@ if (existingEmail) {
 }
         const user = new User({
             name,
-            email,
-            phone,
-            password,
-            role,
-            nidNumber,
-            district,
-            area
+  email,
+  phone,
+  password,
+
+  role,
+
+  nidNumber,
+
+  nidImage,
+
+  district,
+  area,
+
+  isVerified:
+  role === "admin",
+
+verificationStatus:
+  role === "admin"
+    ? "verified"
+    : "pending"
         });
 
         await user.save();
+
+        // Emit real-time update
+        const io = req.app.get("io");
+        io?.emit("user:registered", user);
 
         res.json({ message: "User registered successfully" });
     } catch (error) {
@@ -59,10 +128,45 @@ router.post("/login", async (req, res) => {
         if (user.password !== password) {
             return res.status(400).json({ message: "Wrong password" });
         }
-        if (user.isBlocked && user.blockedUntil && new Date(user.blockedUntil) > new Date()) {
-      return res.status(403).json({
-        message: `You are blocked until ${new Date(user.blockedUntil).toDateString()}`
+        if (!user.isVerified) {
+
+  return res.status(403).json({
+
+    message:
+      "Your account is pending admin verification"
+
+  });
+
+}
+        // BLOCK CHECK
+if (user.isBlocked) {
+
+  if (
+    user.blockedUntil &&
+    new Date() > new Date(user.blockedUntil)
+  ) {
+
+    user.isBlocked = false;
+    user.warningCount = 0;
+    user.blockedUntil = null;
+
+    await user.save();
+
+  }
+
+  else {
+
+    return res.status(403).json({
+
+      message:
+        `You are blocked until ${new Date(
+          user.blockedUntil
+        ).toDateString()}`
+
     });
+
+  }
+
 }
 
         res.json({
@@ -81,18 +185,6 @@ router.get("/", async (req, res) => {
   res.json(users);
 });
 
-// See single user (for admin)
-router.get("/:id", async (req, res) => {
-  const user = await User.findById(req.params.id);
-  res.json(user);
-});
-
-//update user profile 
-router.put("/:id", async (req, res) => {
-    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    res.json(user);
-});
-
 // BLOCK USER
 router.put("/block/:id", async (req, res) => {
   const { days } = req.body;
@@ -109,6 +201,9 @@ router.put("/block/:id", async (req, res) => {
     { new: true }
   );
 
+  // Emit real-time update
+  global.io?.emit("user:blocked", user);
+
   res.json(user);
 });
 //UNBLOCK USER
@@ -123,32 +218,157 @@ router.put("/unblock/:id", async (req, res) => {
     { new: true }
   );
 
+  // Emit real-time update
+  global.io?.emit("user:unblocked", user);
+
   res.json(user);
 });
 // WARN USER
 router.put("/warn/:id", async (req, res) => {
-  const user = await User.findById(req.params.id);
 
-  user.warningCount += 1;
+  try {
 
-  // Auto block after 3 warnings
-  if (user.warningCount >= 3) {
-    user.isBlocked = true;
+    const user = await User.findById(req.params.id);
 
-    const blockedUntil = new Date();
-    blockedUntil.setDate(blockedUntil.getDate() + 5); // auto 5 days
-    user.blockedUntil = blockedUntil;
+    if (!user) {
+
+      return res.status(404).json({
+        message: "User not found"
+      });
+
+    }
+
+    // increase warning
+    user.warningCount += 1;
+
+    let notificationTitle =
+      "Warning From Admin";
+
+    let notificationMessage =
+      "You received a warning from admin.";
+
+    // SECOND WARNING
+    if (user.warningCount === 2) {
+
+      notificationMessage =
+        "You received 2 warnings. One more warning will block your account for 5 days.";
+
+    }
+
+    // THIRD WARNING = BLOCK
+    if (user.warningCount >= 3) {
+
+      const blockedUntil = new Date();
+
+      blockedUntil.setDate(
+        blockedUntil.getDate() + 5
+      );
+
+      user.isBlocked = true;
+      user.blockedUntil = blockedUntil;
+
+      notificationTitle =
+        "Account Blocked";
+
+      notificationMessage =
+        "Your account has been blocked for 5 days.";
+
+    }
+
+    await user.save();
+
+    // CREATE NOTIFICATION
+    await Notification.create({
+
+      userId: user._id,
+
+      title: notificationTitle,
+
+      message: notificationMessage,
+
+      type: "warning"
+
+    });
+
+    // Emit real-time update
+    global.io?.emit("user:warned", user);
+
+    res.json(user);
+
+  } catch (err) {
+
+    console.log(err);
+
+    res.status(500).json({
+      error: err.message
+    });
+
   }
 
-  await user.save();
+});
 
+// See single user (for admin)
+router.get("/:id", async (req, res) => {
+  const user = await User.findById(req.params.id);
   res.json(user);
+});
+
+//update user profile 
+router.put("/:id", async (req, res) => {
+    const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(user);
 });
 
 //  DELETE USER
 router.delete("/:id", async (req, res) => {
-  await User.findByIdAndDelete(req.params.id);
+  const userId = req.params.id;
+  await User.findByIdAndDelete(userId);
+  
+  // Emit real-time update
+  global.io?.emit("user:deleted", { userId });
+  
   res.json({ message: "User deleted" });
 });
+
+router.put(
+  "/verify/:id",
+  async (req, res) => {
+
+    try {
+
+      const user =
+        await User.findByIdAndUpdate(
+
+          req.params.id,
+
+          {
+
+            isVerified: true,
+
+            verificationStatus:
+              "verified"
+
+          },
+
+          { new: true }
+
+        );
+
+      // Emit real-time update
+      const io = req.app.get("io");
+      io?.emit("user:verified", user);
+
+      res.json(user);
+
+    } catch (err) {
+
+      res.status(500).json({
+        error: err.message
+      });
+
+    }
+
+  }
+);
 
 module.exports = router;

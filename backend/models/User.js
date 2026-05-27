@@ -45,8 +45,28 @@ const userSchema = new mongoose.Schema({
     default: false
     },
     blockedUntil: {
-    type: Date,
-    default: null
+  type: Date,
+  default: null
+},
+
+nidImage: {
+  type: String,
+  default: ""
+},
+
+isVerified: {
+  type: Boolean,
+  default: false
+},
+
+verificationStatus: {
+  type: String,
+  enum: [
+    "pending",
+    "verified",
+    "rejected"
+  ],
+  default: "pending"
 }
 }, { timestamps: true });
 

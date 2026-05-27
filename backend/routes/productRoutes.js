@@ -1,38 +1,79 @@
 const express = require("express");
 const router = express.Router();
 const Product = require("../models/Product");
+const multer = require("multer");
+const path = require("path");
+const storage = multer.diskStorage({
+
+  destination: function (req, file, cb) {
+
+    cb(null, "uploads/");
+
+  },
+
+  filename: function (req, file, cb) {
+
+    const uniqueName =
+      Date.now() +
+      path.extname(file.originalname);
+
+    cb(null, uniqueName);
+
+  }
+
+});
+
+const upload = multer({
+  storage
+});
 
 
 // ADD PRODUCT
-router.post("/add", async (req, res) => {
+router.post("/add", upload.single("image"), async (req, res) => {
   try {
     const {
-      name,        // { en, bn }
-      category,    // { en, bn }
-      price,
-      unit,
-      quantity,
-      image,
-      farmerId,
-      district,
-      area,
-      harvestDate
-    } = req.body;
+  name,
+  category,
+  price,
+  unit,
+  quantity,
+  farmerId,
+  district,
+  area,
+  harvestDate
+} = req.body;
+
+const image =
+  req.file
+    ? `http://localhost:3000/uploads/${req.file.filename}`
+    : "";
 
     const product = new Product({
-      name,
-      category,
-      price,
-      unit,
-      quantity,
-      image,
-      farmerId,
-      district,
-      area,
-      harvestDate
-    });
+
+  name: JSON.parse(name),
+
+  category: JSON.parse(category),
+
+  price,
+  unit,
+  quantity,
+
+  image,
+
+  farmerId,
+
+  district,
+  area,
+
+  harvestDate
+
+});
 
     await product.save();
+    
+    // Emit real-time update
+    global.io?.emit("product:added", product);
+    
     res.json({ message: "Product added successfully" });
 
   } catch (error) {
@@ -45,14 +86,13 @@ router.get("/", async (req, res) => {
   try {
     const { category, area } = req.query;
 
-    let filter = {};
+    let filter = { isDeleted: { $ne: true } };
     if (category) filter["category.en"] = category;
     if (area) filter.area = area;
 
-const products = await Product.find({
-  ...filter,
-  isApproved: true
-}).populate("farmerId", "name area");
+const products = await Product.find(filter)
+.populate("farmerId", "name area");
+
     const today = new Date();
 
     const updatedProducts = products.map(p => {
@@ -80,6 +120,28 @@ const products = await Product.find({
   }
 });
 
+// GET APPROVED PRODUCTS ONLY
+router.get("/approved/all", async (req, res) => {
+
+  try {
+
+    const products = await Product.find({
+      isApproved: true,
+      isDeleted: { $ne: true }
+    }).populate("farmerId", "name area");
+
+    res.json(products);
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
+
+});
+
 // GET FARMER PRODUCTS
 router.get("/farmer/:id", async (req, res) => {
 
@@ -87,7 +149,7 @@ router.get("/farmer/:id", async (req, res) => {
 
     const products = await Product.find({
       farmerId: req.params.id
-    });
+    }).sort({ updatedAt: -1 });
 
     res.json(products);
 
@@ -116,10 +178,15 @@ router.put("/approve/:id", async (req, res) => {
     const approvedProduct = await Product.findByIdAndUpdate(
       req.params.id,
       {
-        isApproved: true
+         isApproved: true,
+        approvedAt: new Date(),
+        approvalMessage: "Admin approved this product"
       },
       { new: true }
     );
+
+    // Emit real-time update
+    global.io?.emit("product:approved", approvedProduct);
 
     res.json(approvedProduct);
 
@@ -132,24 +199,30 @@ router.put("/approve/:id", async (req, res) => {
   }
 
 });
-// delete product 
-router.delete("/delete/:id", async (req, res) => {
+// SOFT DELETE PRODUCT
+router.put("/delete/:id", async (req, res) => {
 
   try {
 
-    const deletedProduct = await Product.findByIdAndDelete(
-      req.params.id
-    );
+    const deletedProduct =
+      await Product.findByIdAndUpdate(
 
-    if (!deletedProduct) {
-      return res.status(404).json({
-        message: "Product not found"
-      });
-    }
+        req.params.id,
 
-    res.json({
-      message: "Product deleted successfully"
-    });
+        {
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletionMessage: "Admin deleted this product"
+        },
+
+        { new: true }
+
+      );
+
+    // Emit real-time update
+    global.io?.emit("product:deleted", deletedProduct);
+
+    res.json(deletedProduct);
 
   } catch (err) {
 
@@ -168,6 +241,9 @@ router.put("/update/:id", async (req, res) => {
       req.body,
       { new: true } // returns updated data
     );
+
+    // Emit real-time update
+    global.io?.emit("product:updated", updatedProduct);
 
     res.json(updatedProduct);
   } catch (error) {

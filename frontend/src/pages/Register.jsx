@@ -20,7 +20,8 @@ function Register() {
   password: "",
   nidNumber: "",
   district: "",
-  area: ""
+  area: "",
+  nidImage: null
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -56,14 +57,34 @@ const handleSubmit = async () => {
   }
 
   try {
-    const res = await fetch("http://localhost:3000/api/users/register", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ ...form, role })
-    });
 
+  const formData = new FormData();
+
+  formData.append("name", form.name);
+  formData.append("email", form.email);
+  formData.append("phone", form.phone);
+  formData.append("password", form.password);
+  formData.append("nidNumber", form.nidNumber);
+  formData.append("district", form.district);
+  formData.append("area", form.area);
+  formData.append("role", role);
+
+  if (form.nidImage) {
+
+    formData.append(
+      "nidImage",
+      form.nidImage
+    );
+
+  }
+
+  const res = await fetch(
+    "http://localhost:3000/api/users/register",
+    {
+      method: "POST",
+      body: formData
+    }
+  );
     const data = await res.json();
 
     if (!res.ok) {
@@ -93,7 +114,7 @@ const handleSubmit = async () => {
 
       {/* Content */}
       <div className="relative min-h-screen flex items-center justify-center p-4">
-        <div className="bg-white/80 p-6 rounded-2xl w-[500px] shadow-2xl">
+        <div className="bg-white/85 backdrop-blur-xl p-8 rounded-3xl max-w-[480px] w-full shadow-2xl border border-white/40">
 
           {/* Role Toggle */}
           <div className="flex gap-2 mb-6 bg-gray-100 p-2 rounded-xl">
@@ -124,52 +145,130 @@ const handleSubmit = async () => {
 
           </div>
 
-          <h2 className="text-2xl font-semibold text-center mb-4">
-            Create Account
-          </h2>
+          <div className="text-center mb-6">
+
+  <h2 className="text-3xl font-bold">
+    Create Account
+  </h2>
+
+</div>
 
           {/* Form */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
 
-            <input name="name" value={form.name} onChange={handleChange} className="p-2 border rounded" placeholder="Full Name" />
-            <input name="email" value={form.email} onChange={handleChange} className="p-2 border rounded" placeholder="Email" />
+  {/* NAME + EMAIL */}
+  <div className="grid grid-cols-2 gap-3">
 
-            <input name="phone" value={form.phone} onChange={handleChange} className="p-2 border rounded" placeholder="Phone" />
-            <input name="password" value={form.password} onChange={handleChange} className="p-2 border rounded " type="password" placeholder="Password" />
-            <input name="nidNumber"  value={form.nidNumber} onChange={handleChange} className="p-2 col-span-2 border rounded"
- placeholder="NID Number"
-/>
-            {/* District */}
-            <select
-              name="district"
-              value={form.district}
-              onChange={handleChange}
-              className="p-2 border rounded"
-            >
-              <option value="">Select District</option>
-              {Object.keys(areaData).map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
+    <input
+      name="name"
+      value={form.name}
+      onChange={handleChange}
+      className="p-2 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+      placeholder="Full Name"
+    />
 
-            {/* Area */}
-            <select
-              name="area"
-              value={form.area}
-              onChange={handleChange}
-              className="p-2 border rounded"
-              disabled={!form.district}
-            >
-              <option value="">Select Area</option>
-              {form.district &&
-                areaData[form.district].map((a) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-            </select>
+    <input
+      name="email"
+      value={form.email}
+      onChange={handleChange}
+      className="p-2 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+      placeholder="Email"
+    />
 
-    
+  </div>
 
-          </div>
+  {/* PHONE + PASSWORD */}
+  <div className="grid grid-cols-2 gap-3">
+
+    <input
+      name="phone"
+      value={form.phone}
+      onChange={handleChange}
+      className="p-2 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+      placeholder="Phone"
+    />
+
+    <input
+      name="password"
+      value={form.password}
+      onChange={handleChange}
+      type="password"
+      className="p-2 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+      placeholder="Password"
+    />
+
+  </div>
+
+  {/* NID */}
+  <input
+    name="nidNumber"
+    value={form.nidNumber}
+    onChange={handleChange}
+    className="w-full p-2 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+    placeholder="NID Number"
+  />
+
+  {/* FILE */}
+  <div className="border-2 border-dashed border-green-300 rounded-2xl p-2 bg-green-50">
+
+    <p className="text-sm text-gray-600 mb-2 font-medium">
+      Upload NID Image / PDF
+    </p>
+
+    <input
+      type="file"
+      accept="image/*,.pdf"
+      onChange={(e) =>
+        setForm({
+          ...form,
+          nidImage: e.target.files[0]
+        })
+      }
+      className="w-full"
+    />
+
+  </div>
+
+  {/* DISTRICT + AREA */}
+  <div className="grid grid-cols-2 gap-3">
+
+    <select
+      name="district"
+      value={form.district}
+      onChange={handleChange}
+      className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+    >
+      <option value="">Select District</option>
+
+      {Object.keys(areaData).map((d) => (
+        <option key={d} value={d}>
+          {d}
+        </option>
+      ))}
+
+    </select>
+
+    <select
+      name="area"
+      value={form.area}
+      onChange={handleChange}
+      className="p-3 border rounded-xl outline-none focus:ring-2 focus:ring-green-500"
+      disabled={!form.district}
+    >
+      <option value="">Select Area</option>
+
+      {form.district &&
+        areaData[form.district].map((a) => (
+          <option key={a} value={a}>
+            {a}
+          </option>
+        ))}
+
+    </select>
+
+  </div>
+
+</div>
           {error && (
   <p className="text-red-500 text-sm mt-2 text-center">
     {error}
@@ -179,7 +278,7 @@ const handleSubmit = async () => {
           {/* Submit */}
           <button
             onClick={handleSubmit}
-            className="w-full mt-4 bg-green-700 text-white py-2 rounded hover:bg-green-600"
+            className="w-full mt-6 bg-gradient-to-r from-green-600 to-green-800 text-white py-3 rounded-2xl font-semibold shadow-lg hover:scale-[1.02] transition duration-300"
           >
             Register
           </button>
@@ -203,7 +302,11 @@ const handleSubmit = async () => {
             <CheckCircle className="mx-auto text-green-600 mb-2" size={50} />
 
             <h2 className="text-lg font-bold">Success</h2>
-            <p>Registered successfully</p>
+            <p className="text-gray-600 mt-3">
+
+  Your account has been registered successfully. Please wait 10 minutes for admin verification.
+
+</p>
 
             <button
               onClick={() => {

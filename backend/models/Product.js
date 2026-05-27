@@ -26,6 +26,27 @@ const productSchema = new mongoose.Schema({
   isApproved: {
   type: Boolean,
   default: false
+},
+isDeleted: {
+  type: Boolean,
+  default: false
+},
+deletedAt: {
+  type: Date,
+  default: null
+},
+deletionMessage: {
+  type: String,
+  default: ""
+},
+approvedAt: {
+  type: Date,
+  default: null
+},
+
+approvalMessage: {
+  type: String,
+  default: ""
 }
 }, { timestamps: true });
 

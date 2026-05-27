@@ -3,12 +3,10 @@ import bg from "../assets/reg-bg.png";
 import { Link, useNavigate } from "react-router-dom";
 import { CheckCircle } from "lucide-react";
 
-function Login() {
+function Login({ onLoginSuccess }) {
   const navigate = useNavigate();
-
   const [form, setForm] = useState({
-    email: "",
-    phone: "",
+    emailOrPhone: "",
     password: ""
   });
   
@@ -22,12 +20,23 @@ function Login() {
   setError("");
 
   try {
+    const loginData = {
+      password: form.password
+    };
+    
+    // Check if input is email or phone
+    if (form.emailOrPhone.includes("@")) {
+      loginData.email = form.emailOrPhone;
+    } else {
+      loginData.phone = form.emailOrPhone;
+    }
+
     const res = await fetch("http://localhost:3000/api/users/login", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify(form)
+      body: JSON.stringify(loginData)
     });
 
     const data = await res.json(); // 
@@ -35,7 +44,54 @@ function Login() {
     console.log("LOGIN USER:", data.user);
 
     if (data.user) {
-  localStorage.setItem("user", JSON.stringify(data.user));
+  localStorage.setItem(
+  "user",
+  JSON.stringify(data.user)
+);
+
+// GUEST CART
+const guestCart =
+  JSON.parse(localStorage.getItem("guest_cart")) || [];
+
+// USER CART
+const userCart =
+  JSON.parse(
+    localStorage.getItem(`cart_${data.user._id}`)
+  ) || [];
+
+// MERGE CARTS
+const mergedCart = [...userCart];
+
+guestCart.forEach((guestItem) => {
+
+  const exist = mergedCart.find(
+    item => item.id === guestItem.id
+  );
+
+  if (exist) {
+
+    exist.qty += guestItem.qty;
+
+  } else {
+
+    mergedCart.push(guestItem);
+
+  }
+
+});
+
+// SAVE MERGED CART
+localStorage.setItem(
+  `cart_${data.user._id}`,
+  JSON.stringify(mergedCart)
+);
+
+// REMOVE GUEST CART
+localStorage.removeItem("guest_cart");
+
+// UPDATE APP STATE
+onLoginSuccess?.(data.user);
+
 setShowModal(true);
 
      } else {
@@ -70,19 +126,12 @@ setShowModal(true);
           <div className="space-y-3">
 
             <input
-              name="email"
-              value={form.email}
+              name="emailOrPhone"
+              value={form.emailOrPhone}
               onChange={handleChange}
               className="w-full p-2 border rounded"
-              placeholder="Email (optional)"
-            />
-
-            <input
-              name="phone"
-              value={form.phone}
-              onChange={handleChange}
-              className="w-full p-2 border rounded"
-              placeholder="Phone"
+              placeholder="Email or Phone Number"
+              required
             />
 
             <input
@@ -147,19 +196,33 @@ setShowModal(true);
             {/* Button */}
             <button
               onClick={() => {
-                setShowModal(false);
-                const user = JSON.parse(localStorage.getItem("user"));
-                console.log(user);
-                if (user?.role?.toLowerCase() === "admin") {
-    window.location.href = "/admin";
-  } 
-  else if (user?.role?.toLowerCase() === "farmer") {
-    window.location.href = "/farmer";
-  } 
-  else {
-    window.location.href = "/home";
+
+  setShowModal(false);
+
+  const user =
+    JSON.parse(localStorage.getItem("user"));
+
+  if (user?.role?.toLowerCase() === "admin") {
+
+    navigate("/admin");
+
   }
-              }}
+
+  else if (
+    user?.role?.toLowerCase() === "farmer"
+  ) {
+
+    navigate("/farmer");
+
+  }
+
+  else {
+
+    navigate("/home");
+
+  }
+
+}}
               className="bg-green-600 text-white px-5 py-2 rounded-lg hover:bg-green-700 transition"
             >
               Continue
