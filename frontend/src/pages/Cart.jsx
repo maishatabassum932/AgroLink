@@ -47,12 +47,12 @@ function Cart({ cart = [], setCart }) {
     return farmerDistrict === userDistrict ? 60 : 130;
   };
 
-  // TOTAL PRICE
+  // TOTAL kg
   const totalKg = safeCart.reduce((sum, item) => {
   if (!selectedFarmers[item.farmerId]) return sum;
   return sum + item.qty;
 }, 0);
-
+//total price
 const totalPrice = Object.entries(groupedCart).reduce((sum, [fid, items]) => {
   if (!selectedFarmers[fid]) return sum;
 

@@ -70,10 +70,10 @@ const handleCardChange = (e) => {
   });
 };
 const isCardValid =
-  /^\d{12}$/.test(cardData.number) &&   
+  /^\d{16}$/.test(cardData.number) &&
   /^(0[1-9]|1[0-2])\/\d{2}$/.test(cardData.expiry) &&
-  /^\d{3}$/.test(cardData.cvv) &&        
-  cardData.name.trim().length > 2;   
+  /^\d{3}$/.test(cardData.cvv) &&
+  /^[A-Za-z ]{3,}$/.test(cardData.name.trim());
 
   //bkash/nagad data 
   const [mobileData, setMobileData] = useState({
@@ -89,8 +89,8 @@ const handleMobileChange = (e) => {
   });
 };
 const isMobileValid =
-/^\d{11}$/.test(mobileData.phone) &&   
-  /^\d{4,}$/.test(mobileData.pin); 
+ /^01[3-9]\d{8}$/.test(mobileData.phone) &&
+  /^\d{4,}$/.test(mobileData.pin);
   // PLACE ORDER
 
 const canPlaceOrder =
@@ -643,7 +643,7 @@ const downloadPDF = () => {
       </p>
 
       {/* DEMO OTP */}
-      <p className="text-sm text-gray-400 mb-2">
+      <p className="text-sm text-gray-300 mb-2">
         Demo OTP: <b>{generatedOtp}</b>
       </p>
 

@@ -11,14 +11,14 @@ function Home({ lang, setLang, cart, addToCart }) {
       const navigate = useNavigate();
       const user = JSON.parse(localStorage.getItem("user"));
       const [notifications, setNotifications] = useState([]);
-const [showNotifications, setShowNotifications] = useState(false);
-const [notificationPage, setNotificationPage] = useState(1);
-const unreadCount = notifications.filter(
+      const [showNotifications, setShowNotifications] = useState(false);
+      const [notificationPage, setNotificationPage] = useState(1);
+      const unreadCount = notifications.filter(
   n => !n.isRead
 ).length;
-const notificationsPerPage = 5;
+      const notificationsPerPage = 5;
 
-const startIndex =
+      const startIndex =
   (notificationPage - 1) * notificationsPerPage;
 
 const visibleNotifications =
@@ -242,7 +242,7 @@ useEffect(() => {
   // Fetch immediately
   fetchNotifications();
 
-  // Then fetch every 2 seconds while panel is open
+  // fetch every 2 seconds while panel is open
   const interval = setInterval(fetchNotifications, 2000);
 
   return () => clearInterval(interval);
